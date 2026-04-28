@@ -5,11 +5,56 @@ const Database = require("better-sqlite3");
 
 const app = express();
 const server = http.createServer(app);
+
 const io = new Server(server, {
     cors: { origin: "*" }
 });
 
 const PORT = process.env.PORT || 3000;
+
+// ========== ДОВЕРЯЕМ NGROK / ПРОКСИ ==========
+app.set("trust proxy", true);
+
+// ========== БАН ПО IP ==========
+// Сюда добавляй IP, которые хочешь забанить
+// Пример: const bannedIps = new Set(["123.45.67.89"]);
+const bannedIps = new Set([
+    // "123.45.67.89"
+]);
+
+// socket.id → ip
+const socketIps = new Map();
+
+// ========== ПОЛУЧЕНИЕ IP ==========
+function getRequestIp(req) {
+    return (
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        req.socket.remoteAddress ||
+        "unknown"
+    );
+}
+
+function getSocketIp(socket) {
+    return (
+        socket.handshake.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        socket.handshake.address ||
+        "unknown"
+    );
+}
+
+// ========== ЛОГИРОВАНИЕ И БАН HTTP ==========
+app.use((req, res, next) => {
+    const ip = getRequestIp(req);
+
+    console.log(`[HTTP] ${new Date().toLocaleString("ru-RU")} | IP: ${ip} | ${req.method} ${req.url}`);
+
+    if (bannedIps.has(ip)) {
+        console.log(`⛔ Заблокирован HTTP-запрос от IP: ${ip}`);
+        return res.status(403).send("Ты забанен.");
+    }
+
+    next();
+});
 
 app.use(express.static("public"));
 
@@ -52,9 +97,27 @@ function getChatHistory(user1, user2) {
     return stmt.all(user1, user2, user2, user1);
 }
 
+// ========== БАН SOCKET.IO ==========
+io.use((socket, next) => {
+    const ip = getSocketIp(socket);
+
+    if (bannedIps.has(ip)) {
+        console.log(`⛔ Заблокировано Socket.IO подключение от IP: ${ip}`);
+        return next(new Error("Ты забанен."));
+    }
+
+    socketIps.set(socket.id, ip);
+
+    console.log(`[SOCKET] ${new Date().toLocaleString("ru-RU")} | IP: ${ip} | socket.id: ${socket.id}`);
+
+    next();
+});
+
 // ========== SOCKET ==========
 io.on("connection", (socket) => {
-    console.log(`Новое подключение: ${socket.id}`);
+    const ip = socketIps.get(socket.id) || getSocketIp(socket);
+
+    console.log(`Новое подключение: ${socket.id} | IP: ${ip}`);
 
     socket.on("join", (username) => {
         username = (username || "").trim().slice(0, 30);
@@ -68,7 +131,7 @@ io.on("connection", (socket) => {
         users.set(socket.id, username);
         userSockets.set(username, socket.id);
 
-        console.log(`✅ ${username} вошёл в чат`);
+        console.log(`✅ ${username} вошёл в чат | IP: ${ip}`);
 
         io.emit("users list", Array.from(users.values()));
     });
@@ -90,8 +153,13 @@ io.on("connection", (socket) => {
             from: sender,
             to: to,
             text: cleanText,
-            time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+            time: new Date().toLocaleTimeString("ru-RU", {
+                hour: "2-digit",
+                minute: "2-digit"
+            })
         };
+
+        console.log(`💬 ${sender} -> ${to} | IP: ${ip} | ${cleanText}`);
 
         // Отправляем получателю, если он онлайн
         const targetSocket = userSockets.get(to);
@@ -114,12 +182,18 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
         const username = users.get(socket.id);
+        const disconnectedIp = socketIps.get(socket.id) || "unknown";
+
         if (username) {
-            console.log(`❌ ${username} вышел`);
+            console.log(`❌ ${username} вышел | IP: ${disconnectedIp}`);
             users.delete(socket.id);
             userSockets.delete(username);
             io.emit("users list", Array.from(users.values()));
+        } else {
+            console.log(`❌ Неизвестный пользователь отключился | IP: ${disconnectedIp}`);
         }
+
+        socketIps.delete(socket.id);
     });
 });
 
