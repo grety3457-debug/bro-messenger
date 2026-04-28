@@ -1,10 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bro Messenger</title>
-
     <style>
         * {
             box-sizing: border-box;
@@ -24,62 +23,83 @@
         }
 
         .app {
-            width: min(700px, 100%);
+            width: min(900px, 100%);
             height: 85vh;
             background: rgba(20, 22, 35, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 24px;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        /* Сайдбар - список пользователей */
+        .sidebar {
+            width: 260px;
+            background: rgba(15, 17, 30, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 18px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+            .sidebar-header h2 {
+                font-size: 18px;
+            }
+
+        .users-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+
+        .user-item {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+            .user-item:hover {
+                background: rgba(255,255,255,0.08);
+            }
+
+            .user-item.active {
+                background: rgba(108, 92, 231, 0.3);
+            }
+
+            .user-item .status {
+                width: 10px;
+                height: 10px;
+                background: #00b894;
+                border-radius: 50%;
+            }
+
+        /* Основная область чата */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .top {
             padding: 18px 20px;
             background: rgba(255, 255, 255, 0.06);
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-            .top h1 {
-                font-size: 22px;
-                margin-bottom: 4px;
-            }
-
-            .top p {
-                color: #a1a1aa;
-                font-size: 14px;
-            }
-
-        .login {
-            padding: 20px;
             display: flex;
-            gap: 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            justify-content: space-between;
+            align-items: center;
         }
 
-            .login input,
-            .form input {
-                flex: 1;
-                border: 0;
-                outline: 0;
-                border-radius: 14px;
-                padding: 14px;
-                background: rgba(255, 255, 255, 0.1);
-                color: white;
-                font-size: 15px;
-            }
-
-            .login button,
-            .form button {
-                border: 0;
-                border-radius: 14px;
-                padding: 14px 18px;
-                background: linear-gradient(135deg, #6c5ce7, #00cec9);
-                color: white;
-                font-weight: bold;
-                cursor: pointer;
-            }
+        .chat-header {
+            font-size: 20px;
+        }
 
         .messages {
             flex: 1;
@@ -96,7 +116,6 @@
             border-radius: 18px;
             background: rgba(255, 255, 255, 0.1);
             line-height: 1.35;
-            word-wrap: break-word;
         }
 
             .message.me {
@@ -125,13 +144,6 @@
                 font-size: 11px;
             }
 
-        .typing {
-            height: 24px;
-            padding: 0 20px;
-            color: #a1a1aa;
-            font-size: 14px;
-        }
-
         .form {
             padding: 16px;
             display: flex;
@@ -139,131 +151,169 @@
             border-top: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+            .form input {
+                flex: 1;
+                border: 0;
+                outline: 0;
+                border-radius: 14px;
+                padding: 14px;
+                background: rgba(255, 255, 255, 0.1);
+                color: white;
+                font-size: 15px;
+            }
+
+            .form button {
+                border: 0;
+                border-radius: 14px;
+                padding: 14px 24px;
+                background: linear-gradient(135deg, #6c5ce7, #00cec9);
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+            }
+
         .hidden {
             display: none;
         }
     </style>
 </head>
-
 <body>
     <div class="app">
-        <div class="top">
-            <h1>Bro Messenger</h1>
-            <p id="status">Введи имя, чтобы зайти в чат</p>
+        <!-- Сайдбар со списком пользователей -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Bro Messenger</h2>
+                <p id="myNameDisplay"></p>
+            </div>
+            <div class="users-list" id="usersList">
+                <!-- Пользователи будут добавляться сюда через JS -->
+            </div>
         </div>
 
-        <div class="login" id="loginBox">
-            <input id="nameInput" placeholder="Твоё имя..." />
-            <button id="loginBtn">Войти</button>
+        <!-- Основная область чата -->
+        <div class="chat-area">
+            <div class="top">
+                <div class="chat-header" id="chatHeader">Выбери собеседника</div>
+            </div>
+
+            <div class="messages" id="messages"></div>
+
+            <form class="form hidden" id="form">
+                <input id="messageInput" placeholder="Напиши сообщение..." autocomplete="off" />
+                <button>Отправить</button>
+            </form>
         </div>
-
-        <div class="messages" id="messages"></div>
-
-        <div class="typing" id="typing"></div>
-
-        <form class="form hidden" id="form">
-            <input id="messageInput" placeholder="Напиши сообщение..." autocomplete="off" />
-            <button>Отправить</button>
-        </form>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-
     <script>
-    const socket = io();
+        const socket = io();
+        let myName = "";
+        let currentChat = null;
 
-    let myName = "";
+        const myNameDisplay = document.getElementById("myNameDisplay");
+        const usersList = document.getElementById("usersList");
+        const messages = document.getElementById("messages");
+        const chatHeader = document.getElementById("chatHeader");
+        const form = document.getElementById("form");
+        const messageInput = document.getElementById("messageInput");
 
-    const loginBox = document.getElementById("loginBox");
-    const nameInput = document.getElementById("nameInput");
-    const loginBtn = document.getElementById("loginBtn");
-    const statusText = document.getElementById("status");
-    const messages = document.getElementById("messages");
-    const typing = document.getElementById("typing");
-    const form = document.getElementById("form");
-    const messageInput = document.getElementById("messageInput");
+        // Логин при загрузке
+        window.onload = () => {
+            const name = prompt("Введи своё имя для входа:");
+            if (!name || name.trim() === "") {
+                alert("Имя обязательно!");
+                window.location.reload();
+                return;
+            }
 
-    loginBtn.addEventListener("click", login);
+            myName = name.trim();
+            myNameDisplay.textContent = `Ты: ${myName}`;
 
-    nameInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") login();
-    });
+            socket.emit("join", myName);
+            form.classList.remove("hidden");
+        };
 
-    function login() {
-      const name = nameInput.value.trim();
+        // Обновление списка пользователей
+        socket.on("users list", (users) => {
+            usersList.innerHTML = "";
 
-      if (!name) {
-        alert("Введи имя, бро");
-        return;
-      }
+            users.forEach(user => {
+                if (user === myName) return; // себя не показываем
 
-      myName = name;
-      loginBox.classList.add("hidden");
-      form.classList.remove("hidden");
-      statusText.textContent = `Ты вошёл как ${myName}`;
-      messageInput.focus();
-    }
+                const div = document.createElement("div");
+                div.className = `user-item ${user === currentChat ? 'active' : ''}`;
+                div.innerHTML = `
+                    <div class="status"></div>
+                    <span>${user}</span>
+                `;
 
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
+                div.onclick = () => openChatWith(user);
+                usersList.appendChild(div);
+            });
+        });
 
-      const text = messageInput.value.trim();
+        // Открытие чата с выбранным пользователем
+        function openChatWith(username) {
+            currentChat = username;
+            chatHeader.textContent = `Чат с ${username}`;
+            messages.innerHTML = `<p style="color:#888; text-align:center; margin-top:50px;">Начало переписки с ${username}</p>`;
 
-      if (!text) return;
+            // Подсвечиваем активного
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.toggle("active", item.textContent.includes(username));
+            });
+        }
 
-      socket.emit("chat message", {
-        name: myName,
-        text: text
-      });
+        // Отправка личного сообщения
+        form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text || !currentChat) return;
 
-      messageInput.value = "";
-      typing.textContent = "";
-    });
+            socket.emit("private message", {
+                to: currentChat,
+                text: text
+            });
 
-    messageInput.addEventListener("input", () => {
-      if (myName) {
-        socket.emit("typing", myName);
-      }
-    });
+            // Показываем своё сообщение сразу
+            addMessage(myName, text, true);
+            messageInput.value = "";
+        });
 
-    socket.on("chat message", (data) => {
-      const div = document.createElement("div");
+        // Получение личного сообщения
+        socket.on("private message", (data) => {
+            // Показываем сообщение, если чат с этим человеком открыт
+            if (data.from === currentChat || data.from === myName) {
+                const isMine = data.from === myName;
+                addMessage(data.from, data.text, isMine);
+            }
+        });
 
-      if (data.name === myName) {
-        div.className = "message me";
-      } else {
-        div.className = "message other";
-      }
+        function addMessage(sender, text, isMine) {
+            const div = document.createElement("div");
+            div.className = `message ${isMine ? "me" : "other"}`;
+            div.innerHTML = `
+                <b>${escapeHTML(sender)}</b>
+                ${escapeHTML(text)}
+            `;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
 
-      div.innerHTML = `
-        <b>${escapeHTML(data.name)}</b>
-        ${escapeHTML(data.text)}
-        <small>${escapeHTML(data.time)}</small>
-      `;
+        function escapeHTML(text) {
+            return String(text)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
 
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
-      typing.textContent = "";
-    });
-
-    socket.on("typing", (name) => {
-      if (name === myName) return;
-
-      typing.textContent = `${name} печатает...`;
-
-      setTimeout(() => {
-        typing.textContent = "";
-      }, 1200);
-    });
-
-    function escapeHTML(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
+        // Для отладки
+        socket.on("error", (msg) => {
+            alert(msg);
+        });
     </script>
 </body>
 </html>
