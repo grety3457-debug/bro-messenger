@@ -271,22 +271,31 @@
             const text = messageInput.value.trim();
             if (!text || !currentChat) return;
 
+            const messageData = {
+                from: myName,
+                to: currentChat,
+                text: text,
+                time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+            };
+
+            // Отправляем на сервер
             socket.emit("private message", {
                 to: currentChat,
                 text: text
             });
 
-            // Показываем своё сообщение сразу
+            // Показываем своё сообщение **только один раз**
             addMessage(myName, text, true);
             messageInput.value = "";
         });
 
-        // Получение личного сообщения
+        // Получение сообщений
         socket.on("private message", (data) => {
-            // Показываем сообщение, если чат с этим человеком открыт
-            if (data.from === currentChat || data.from === myName) {
-                const isMine = data.from === myName;
-                addMessage(data.from, data.text, isMine);
+            // Показываем сообщение ТОЛЬКО если это не наше (чтобы не дублировалось)
+            if (data.from !== myName) {
+                if (data.from === currentChat) {
+                    addMessage(data.from, data.text, false);
+                }
             }
         });
 
