@@ -4,35 +4,96 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+    cors: { origin: "*" }
+});
 
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static("public"));
 
-io.on("connection", (socket) => {
-    console.log("User connected:", socket.id);
+// Хранилище онлайн пользователей: { socket.id: username }
+const users = new Map();        // socket.id → username
+const userSockets = new Map();  // username → socket.id
 
-    socket.on("chat message", (data) => {
-        io.emit("chat message", {
-            name: data.name,
-            text: data.text,
-            time: new Date().toLocaleTimeString("ru-RU", {
-                hour: "2-digit",
-                minute: "2-digit",
-            }),
+io.on("connection", (socket) => {
+    console.log(`Новый пользователь: ${socket.id}`);
+
+    // ==================== ПРИСОЕДИНЕНИЕ ====================
+    socket.on("join", (username) => {
+        if (!username || typeof username !== "string") return;
+
+        // Убираем пробелы и ограничиваем длину
+        username = username.trim().slice(0, 30);
+
+        // Проверяем, не занят ли ник
+        if ([...users.values()].includes(username)) {
+            socket.emit("error", "Это имя уже занято");
+            return;
+        }
+
+        users.set(socket.id, username);
+        userSockets.set(username, socket.id);
+
+        console.log(`${username} присоединился`);
+
+        // Отправляем обновлённый список всем
+        updateUsersList();
+
+        // Приветственное сообщение
+        socket.emit("chat message", {
+            name: "System",
+            text: `Добро пожаловать, ${username}!`,
+            time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
         });
     });
 
-    socket.on("typing", (name) => {
-        socket.broadcast.emit("typing", name);
+    // ==================== ЛИЧНЫЕ СООБЩЕНИЯ ====================
+    socket.on("private message", (data) => {
+        const senderName = users.get(socket.id);
+        if (!senderName) return;
+
+        const { to, text } = data;
+        if (!to || !text) return;
+
+        const targetSocketId = userSockets.get(to);
+        if (!targetSocketId) {
+            socket.emit("error", `Пользователь ${to} не в сети`);
+            return;
+        }
+
+        const messageData = {
+            from: senderName,
+            to: to,
+            text: text.trim(),
+            time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+        };
+
+        // Отправляем получателю
+        socket.to(targetSocketId).emit("private message", messageData);
+
+        // Отправляем отправителю (чтобы сразу увидел своё сообщение)
+        socket.emit("private message", messageData);
     });
 
+    // ==================== ОТКЛЮЧЕНИЕ ====================
     socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
+        const username = users.get(socket.id);
+        if (username) {
+            console.log(`${username} отключился`);
+            users.delete(socket.id);
+            userSockets.delete(username);
+            updateUsersList();
+        }
     });
 });
 
+// Функция обновления списка пользователей
+function updateUsersList() {
+    const onlineUsers = Array.from(users.values());
+    io.emit("users list", onlineUsers);
+}
+
 server.listen(PORT, () => {
-    console.log("Server started on port " + PORT);
+    console.log(`Сервер запущен на порту ${PORT}`);
 });
