@@ -218,7 +218,7 @@
         const form = document.getElementById("form");
         const messageInput = document.getElementById("messageInput");
 
-        // === АВТОЛОГИН ===
+        // Автологин
         function autoLogin() {
             const savedName = localStorage.getItem("broUsername");
             if (savedName) {
@@ -231,58 +231,67 @@
             return false;
         }
 
-        // Основной вход
         function login() {
-            let name = prompt("Введи своё имя (ник):");
-            if (!name || !name.trim()) {
-                alert("Имя обязательно!");
-                return login();
-            }
-            name = name.trim();
-
-            myName = name;
-            localStorage.setItem("broUsername", myName);   // сохраняем
+            let name = prompt("Введи своё имя:");
+            if (!name || !name.trim()) return login();
+            myName = name.trim();
+            localStorage.setItem("broUsername", myName);
             myNameDisplay.textContent = `Ты: ${myName}`;
             socket.emit("join", myName);
             form.classList.remove("hidden");
         }
 
-        // Запуск при загрузке страницы
         window.onload = () => {
-            if (!autoLogin()) {
-                login();
-            }
+            if (!autoLogin()) login();
         };
 
-        // ==================== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ====================
+        // Список пользователей
         socket.on("users list", (users) => {
             usersList.innerHTML = "";
-
             users.forEach(user => {
                 if (user === myName) return;
-
                 const div = document.createElement("div");
                 div.className = `user-item ${user === currentChat ? 'active' : ''}`;
-                div.innerHTML = `
-                    <div class="status"></div>
-                    <span>${user}</span>
-                `;
+                div.innerHTML = `<div class="status"></div><span>${user}</span>`;
                 div.onclick = () => openChatWith(user);
                 usersList.appendChild(div);
             });
         });
 
+        // Открытие чата + загрузка истории
         function openChatWith(username) {
             currentChat = username;
             chatHeader.textContent = `Чат с ${username}`;
-            messages.innerHTML = `<p style="color:#888; text-align:center; margin-top:40px;">Начало переписки с ${username}</p>`;
+            messages.innerHTML = "<p style='color:#666; text-align:center; margin-top:50px;'>Загрузка истории...</p>";
 
+            // Запрашиваем историю из базы
+            socket.emit("get chat history", { withUser: username });
+
+            // Подсвечиваем активного пользователя
             document.querySelectorAll('.user-item').forEach(item => {
                 item.classList.toggle("active", item.textContent.includes(username));
             });
         }
 
-        // ==================== ОТПРАВКА СООБЩЕНИЯ ====================
+        // Получение истории чата
+        socket.on("chat history", ({ withUser, messages: history }) => {
+            if (withUser !== currentChat) return;
+
+            messages.innerHTML = "";
+
+            if (history.length === 0) {
+                messages.innerHTML = `<p style="color:#888; text-align:center; margin-top:50px;">Начало переписки с ${withUser}</p>`;
+                return;
+            }
+
+            history.forEach(msg => {
+                const isMine = msg.from === myName;
+                addMessage(msg.from, msg.text, isMine, msg.time);
+            });
+            messages.scrollTop = messages.scrollHeight;
+        });
+
+        // Отправка сообщения
         form.addEventListener("submit", (e) => {
             e.preventDefault();
             const text = messageInput.value.trim();
@@ -290,25 +299,27 @@
 
             socket.emit("private message", { to: currentChat, text: text });
 
-            // Показываем своё сразу
             addMessage(myName, text, true);
             messageInput.value = "";
         });
 
-        // ==================== ПОЛУЧЕНИЕ СООБЩЕНИЙ ====================
+        // Получение нового сообщения
         socket.on("private message", (data) => {
-            // Показываем только чужие сообщения
-            if (data.from !== myName && data.from === currentChat) {
-                addMessage(data.from, data.text, false);
+            if (data.from === currentChat) {
+                addMessage(data.from, data.text, false, data.time);
             }
         });
 
-        function addMessage(sender, text, isMine) {
+        function addMessage(sender, text, isMine, time = null) {
             const div = document.createElement("div");
             div.className = `message ${isMine ? "me" : "other"}`;
+
+            const timeHTML = time ? `<small>${time}</small>` : '';
+
             div.innerHTML = `
                 <b>${escapeHTML(sender)}</b>
                 ${escapeHTML(text)}
+                ${timeHTML}
             `;
             messages.appendChild(div);
             messages.scrollTop = messages.scrollHeight;
@@ -323,15 +334,9 @@
                 .replaceAll("'", "&#039;");
         }
 
-        // Ошибки с сервера
-        socket.on("error", (msg) => {
-            alert("Ошибка: " + msg);
-        });
-
-        // Если имя уже занято
         socket.on("username taken", () => {
             localStorage.removeItem("broUsername");
-            alert("Это имя уже занято. Выбери другое.");
+            alert("Имя уже занято, выбери другое");
             login();
         });
     </script>
